@@ -1,0 +1,170 @@
+import Papa from "papaparse";
+import * as XLSX from "xlsx";
+import { z } from "zod";
+import type {
+  BalticIndexRow,
+  BunkerRow,
+  FfaContractRow,
+  PhysicalOpportunityRow,
+  RouteDistanceRow,
+  VesselSpecRow,
+} from "../types";
+
+const numberish = z.coerce.number();
+const boolish = z.union([z.boolean(), z.string(), z.number()]).transform((value) => {
+  if (typeof value === "boolean") return value;
+  return ["true", "yes", "1", "y"].includes(String(value).toLowerCase());
+});
+
+export const balticSchema = z.object({
+  date: z.string(),
+  index_code: z.string(),
+  value: numberish,
+  unit: z.enum(["$/day", "$/mt", "$/pt", "index"]),
+});
+
+export const ffaSchema = z.object({
+  trade_date: z.string(),
+  contract_code: z.string(),
+  settlement_index: z.string(),
+  period_type: z.enum(["MONTH", "QUARTER", "CALENDAR"]),
+  period_start: z.string(),
+  period_end: z.string(),
+  price: numberish,
+  bid: numberish,
+  ask: numberish,
+  unit: z.enum(["$/day", "$/mt", "$/pt", "index"]),
+  lot_size: numberish,
+  source: z.string(),
+});
+
+export const vesselSchema = z.object({
+  vessel_name: z.string(),
+  segment: z.enum(["PANAMAX", "VLGC"]),
+  dwt: numberish,
+  cbm: numberish,
+  built_year: numberish,
+  age: numberish,
+  scrubber_fitted: boolish,
+  loa: numberish,
+  beam: numberish,
+  draft: numberish,
+  laden_speed: numberish,
+  laden_consumption: numberish,
+  ballast_speed: numberish,
+  ballast_consumption: numberish,
+  eco_laden_speed: numberish,
+  eco_laden_consumption: numberish,
+  eco_ballast_speed: numberish,
+  eco_ballast_consumption: numberish,
+  port_working_consumption: numberish,
+  port_idle_consumption: numberish,
+  fuel_type_main: z.enum(["VLSFO", "HSFO", "MGO", "MFO"]),
+  fuel_type_scrubber: z.enum(["HSFO", "VLSFO", "MGO", "MFO"]),
+  mgo_consumption: numberish,
+  commercial_premium_or_discount: numberish,
+});
+
+export const opportunitySchema = z.object({
+  opportunity_id: z.string(),
+  vessel_name: z.string(),
+  trade_type: z.enum(["TC_IN_ONLY", "TC_IN_AND_VOYAGE", "TC_IN_AND_TC_OUT", "CARGO_COVER", "COA_COVER", "VOYAGE_RELET"]),
+  route_code: z.string(),
+  delivery_area: z.string(),
+  redelivery_area: z.string(),
+  load_port: z.string(),
+  discharge_port: z.string(),
+  laycan_start: z.string(),
+  laycan_end: z.string(),
+  cargo_qty: numberish,
+  freight_rate: numberish,
+  tc_in_hire: numberish,
+  tc_out_hire: numberish,
+  voyage_days: numberish,
+  ballast_days: numberish,
+  laden_days: numberish,
+  port_days: numberish,
+  waiting_days: numberish,
+  canal_days: numberish,
+  commission_pct: numberish,
+  port_costs: numberish,
+  canal_costs: numberish,
+  misc_costs: numberish,
+  employment_status: z.enum(["FIXED", "OPEN", "INDICATED", "NONE"]),
+});
+
+export const bunkerSchema = z.object({
+  date: z.string(),
+  port: z.string(),
+  VLSFO: numberish,
+  HSFO: numberish,
+  MGO: numberish,
+  MFO: numberish,
+  currency: z.string(),
+});
+
+export const routeSchema = z.object({
+  route_code: z.string(),
+  benchmark_family: z.enum(["PANAMAX", "BLPG"]),
+  load_port: z.string(),
+  discharge_port: z.string(),
+  ballast_start: z.string(),
+  laden_distance: numberish,
+  ballast_distance: numberish,
+  canal_required: boolish,
+  standard_waiting_days: numberish,
+  standard_load_days: numberish,
+  standard_discharge_days: numberish,
+  weather_margin: numberish,
+  standard_commission: numberish,
+  standard_cargo_qty: numberish.default(0),
+  exposure: z.record(z.string(), numberish).default({}),
+  route_notes: z.string().optional(),
+});
+
+type DatasetMap = {
+  baltic: BalticIndexRow;
+  ffa: FfaContractRow;
+  vessel: VesselSpecRow;
+  opportunity: PhysicalOpportunityRow;
+  bunker: BunkerRow;
+  route: RouteDistanceRow;
+};
+
+const schemas = {
+  baltic: balticSchema,
+  ffa: ffaSchema,
+  vessel: vesselSchema,
+  opportunity: opportunitySchema,
+  bunker: bunkerSchema,
+  route: routeSchema,
+};
+
+export async function parseUploadedFile<K extends keyof DatasetMap>(
+  file: File,
+  dataset: K,
+): Promise<{ rows: DatasetMap[K][]; errors: string[]; columns: string[] }> {
+  const rows = file.name.endsWith(".xlsx") || file.name.endsWith(".xls") ? await parseExcel(file) : await parseCsv(file);
+  const parsed = z.array(schemas[dataset]).safeParse(rows);
+  if (!parsed.success) {
+    return {
+      rows: [],
+      errors: parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`),
+      columns: Object.keys(rows[0] ?? {}),
+    };
+  }
+  return { rows: parsed.data as DatasetMap[K][], errors: [], columns: Object.keys(rows[0] ?? {}) };
+}
+
+async function parseCsv(file: File): Promise<Record<string, unknown>[]> {
+  const text = await file.text();
+  const result = Papa.parse<Record<string, unknown>>(text, { header: true, skipEmptyLines: true, dynamicTyping: true });
+  return result.data;
+}
+
+async function parseExcel(file: File): Promise<Record<string, unknown>[]> {
+  const buffer = await file.arrayBuffer();
+  const workbook = XLSX.read(buffer);
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  return XLSX.utils.sheet_to_json(sheet);
+}
