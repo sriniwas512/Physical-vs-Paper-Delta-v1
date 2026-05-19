@@ -1,73 +1,78 @@
-# React + TypeScript + Vite
+# Baltic Real Ship Basis Lab
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Baltic Real Ship Basis Lab is a freight trading dashboard for comparing a real physical ship opportunity against the Baltic paper benchmark it is being hedged with.
 
-Currently, two official plugins are available:
+The core question is simple:
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+**Does the real ship outperform the artificial Baltic benchmark ship, and does the paper market create a tradable basis signal?**
 
-## React Compiler
+## What The App Does
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+The app analyses the delta between:
 
-## Expanding the ESLint configuration
+- **Physical leg:** the actual economics of a real vessel, cargo, voyage, TC-in, TC-out, bunker exposure, commissions, port costs and scrubber value.
+- **Paper leg:** the Baltic benchmark route, index, FFA/futures contract, settlement rule, unit and benchmark vessel assumptions.
+- **Signal:** real ship outperformance plus paper mispricing, minus hedge costs, basis risk, route mismatch, idle risk and other deductions.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+It is designed for shipbrokers, freight traders and analysts who want to test whether a physical plus paper structure is a genuine basis opportunity or a false arbitrage.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Markets Covered
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+The dashboard supports two separated modes:
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+- **Panamax:** P5TC, P1A_82, P2A_82, P3A_82, P4_82, P6_82 and related Panamax FFA settlement rules.
+- **LPG / VLGC:** BLPG, BLPG1, BLPG2, BLPG3 and their $/mt paper contracts alongside BLPG-TCE $/day benchmark views.
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+A main toggle switches the whole app between Panamax and LPG so the two paper markets are not shown together.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Key Workflows
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+### Data Health
+Upload and validate Baltic index data, FFA/futures data, bunker prices, vessel specifications, route assumptions and physical opportunities.
+
+### Benchmark Registry
+Shows the Baltic paper benchmark assumptions used for the selected market, including benchmark vessel specs, headline formulas, route formulas and settlement rule metadata.
+
+### Physical Opportunity Builder
+Calculates the actual real ship voyage or TC economics and compares them with the Baltic benchmark-equivalent economics.
+
+### Settlement Lab
+Shows how the paper contract settles: market price, expected settlement, realized Baltic prints, remaining settlement days and implied remaining rate.
+
+### Basis Decomposition
+Breaks the delta into fuel efficiency, scrubber value, speed, intake/cbm, position, laycan, hire premium and costs.
+
+### Hedge Simulator
+Sizes the hedge correctly by unit:
+
+- $/day paper uses exposure days.
+- BLPG $/mt paper uses cargo tonnes, not vessel days.
+
+### Signal Monitor
+Produces a trade label such as:
+
+- Strong long physical / short paper
+- Long physical only
+- Paper only
+- No trade
+- Dangerous false arbitrage
+
+It also flags risks such as missing employment, unit mismatch, settlement mismatch, route mismatch, scrubber capture error and missing settlement data.
+
+## Paper Rule Source
+
+The paper side is aligned to the latest Baltic rule file supplied for the project:
+
+- Panamax benchmark and FFA settlement rules
+- BPI/P5TC formulas
+- BPI82 standard vessel assumptions
+- BLPG headline formula
+- BLPG1/2/3 $/mt paper contracts
+- BLPG1/2/3-TCE $/day benchmark views
+- VLGC84 standard vessel assumptions
+
+The physical side remains user-specific: it reflects the actual vessel and opportunity economics entered or uploaded by the user.
+
+## MVP Scope
+
+This is a client-side MVP. It includes mock Panamax and LPG data so the dashboard works immediately before uploads, and all calculations are transparent with visible units and formula tooltips.
