@@ -1,8 +1,11 @@
-import { Anchor, ArrowLeftRight, BarChart3, Database, Download, FileText, Gauge, GitCompareArrows, Ship, Waves } from "lucide-react";
+import { Anchor, ArrowLeftRight, BarChart3, ClipboardCheck, Database, Download, FileText, Gauge, GitCompareArrows, Ship, Waves } from "lucide-react";
 import { useMemo, useState } from "react";
 import { benchmarkShips } from "./data/mockData";
 import { balticHeadlineRules, p5tcFormula, settlementRules } from "./lib/settlementEngine";
 import { pct } from "./lib/format";
+import { GMB_VERSION } from "./rules/gmbVersion";
+import { physicalRouteIndices, headlineIndices } from "./rules/indexRegistry";
+import { discontinuedContractRules, forwardContractRules } from "./rules/contractRegistry";
 import { useLabStore } from "./store";
 import { isFfaInMode } from "./lib/marketMode";
 import { UploadWizard } from "./components/UploadWizard";
@@ -12,6 +15,7 @@ import { BasisWaterfall } from "./components/BasisWaterfall";
 import { HedgeSimulator } from "./components/HedgeSimulator";
 import { SignalMonitor } from "./components/SignalMonitor";
 import { BacktestPanel } from "./components/BacktestPanel";
+import { TradeExecutionPlan } from "./components/TradeExecutionPlan";
 import { Panel, Tag } from "./components/common";
 import "./index.css";
 
@@ -23,6 +27,7 @@ const nav = [
   { id: "basis", label: "Basis Decomposition", icon: BarChart3 },
   { id: "hedge", label: "Hedge Simulator", icon: GitCompareArrows },
   { id: "signals", label: "Signal Monitor", icon: Gauge },
+  { id: "execution", label: "Execution Plan", icon: ClipboardCheck },
   { id: "backtest", label: "Backtest", icon: FileText },
   { id: "export", label: "Export", icon: Download },
 ] as const;
@@ -129,6 +134,7 @@ function App() {
             </button>
             <Tag tone="good">{activeOpportunity?.opportunity_id ?? "No opportunity"}</Tag>
             <Tag tone={activeContract?.unit === "$/mt" ? "warn" : "neutral"}>{activeContract?.contract_code ?? "No paper"}</Tag>
+            <Tag>{GMB_VERSION}</Tag>
           </div>
         </header>
 
@@ -140,7 +146,7 @@ function App() {
 
         {page === "health" ? <UploadWizard /> : null}
         {page === "registry" ? (
-          <Panel title="Benchmark Registry" description="Editable assumptions shown from hard-coded GMB defaults for MVP.">
+          <Panel title="Benchmark Registry" description="Separated GMB v8.4 rule registries for route indices, headline indices, contracts, discontinued contracts and benchmark ships.">
             <div className="registry-grid">
               {activeBenchmarkShips.map((ship) => (
                 <article className="registry-card" key={ship.code}>
@@ -163,6 +169,10 @@ function App() {
                 <div key={row.label}><b>{row.label}</b><span>{row.value}</span></div>
               ))}
               <div><b>Settlement rules</b><span>{activeSettlementRules.map((rule) => `${rule.contractCode}: ${rule.settlementBasis} ${rule.unit}`).join(" · ")}</span></div>
+              <div><b>Forward contracts</b><span>{Object.keys(forwardContractRules).filter((code) => activeSettlementRules.some((rule) => rule.contractCode === code)).join(" · ")}</span></div>
+              <div><b>Discontinued contracts</b><span>{Object.values(discontinuedContractRules).map((rule) => `${rule.contractCode}: ${rule.notes}`).join(" · ")}</span></div>
+              <div><b>Physical route indices</b><span>{Object.values(physicalRouteIndices).filter((rule) => rule.benchmarkFamily === state.marketMode).map((rule) => `${rule.sourceReference} ${rule.unit}`).join(" · ")}</span></div>
+              <div><b>Headline registry</b><span>{Object.values(headlineIndices).filter((rule) => rule.benchmarkFamily === state.marketMode).map((rule) => `${rule.sourceReference}: ${rule.formula}`).join(" · ")}</span></div>
             </div>
           </Panel>
         ) : null}
@@ -171,6 +181,7 @@ function App() {
         {page === "basis" ? <BasisWaterfall /> : null}
         {page === "hedge" ? <HedgeSimulator /> : null}
         {page === "signals" ? <SignalMonitor /> : null}
+        {page === "execution" ? <TradeExecutionPlan /> : null}
         {page === "backtest" ? <BacktestPanel /> : null}
         {page === "export" ? <ExportPanel /> : null}
       </main>

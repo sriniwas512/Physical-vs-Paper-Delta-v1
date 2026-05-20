@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { format } from "date-fns";
 import {
   balticIndexData,
   bunkers,
@@ -34,12 +35,14 @@ type LabStore = {
   scrubberMode: ScrubberCaptureMode;
   hedgeRatio: number;
   hedgeSide: "LONG" | "SHORT";
+  asOfDate: string;
   setMarketMode: (mode: BenchmarkFamily) => void;
   setSelectedOpportunityId: (id: string) => void;
   setSelectedContractCode: (code: string) => void;
   setForecastMode: (mode: ForecastMode) => void;
   setScrubberMode: (mode: ScrubberCaptureMode) => void;
   setHedgeRatio: (ratio: number) => void;
+  setAsOfDate: (date: string) => void;
   ingest: <K extends "baltic" | "ffas" | "vessels" | "opportunities" | "bunkers" | "routes">(
     key: K,
     rows: LabStore[K],
@@ -60,6 +63,7 @@ export const useLabStore = create<LabStore>((set) => ({
   scrubberMode: "CHARTERER_RETAINS",
   hedgeRatio: 0.9,
   hedgeSide: "SHORT",
+  asOfDate: format(new Date(), "yyyy-MM-dd"),
   setMarketMode: (marketMode) =>
     set({
       marketMode,
@@ -71,5 +75,6 @@ export const useLabStore = create<LabStore>((set) => ({
   setForecastMode: (forecastMode) => set({ forecastMode }),
   setScrubberMode: (scrubberMode) => set({ scrubberMode }),
   setHedgeRatio: (hedgeRatio) => set({ hedgeRatio }),
+  setAsOfDate: (asOfDate) => set({ asOfDate }),
   ingest: (key, rows) => set({ [key]: rows } as Pick<LabStore, typeof key>),
 }));

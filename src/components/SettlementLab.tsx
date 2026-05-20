@@ -6,7 +6,7 @@ import { useLabStore } from "../store";
 import { Metric, Panel, Tag } from "./common";
 
 export function SettlementLab() {
-  const { baltic, ffas, selectedContractCode, setSelectedContractCode, forecastMode, setForecastMode } = useLabStore();
+  const { baltic, ffas, selectedContractCode, setSelectedContractCode, forecastMode, setForecastMode, asOfDate, setAsOfDate } = useLabStore();
   const marketMode = useLabStore((state) => state.marketMode);
   const activeFfas = ffas.filter((ffa) => isFfaInMode(ffa, marketMode));
   const contract =
@@ -15,7 +15,7 @@ export function SettlementLab() {
     activeFfas[0];
   const rule = settlementRules[contract.contract_code] ?? settlementRules["P5TC-FFA"];
   const settlement = calculateSettlement(contract, rule, baltic, {
-    asOfDate: "2026-05-14",
+    asOfDate,
     forecastMode,
   });
   const chartRows = settlement.observations.map((row) => ({
@@ -40,14 +40,25 @@ export function SettlementLab() {
           <option value="STATISTICAL">Trailing average</option>
           <option value="USER_FORECAST">User forecast</option>
         </select>
+        <label className="inline-field">
+          As-of
+          <input type="date" value={asOfDate} onChange={(event) => setAsOfDate(event.target.value)} />
+        </label>
         <Tag>{rule.settlementBasis}</Tag>
         <Tag tone={rule.unit === "$/mt" ? "warn" : "neutral"}>{rule.unit}</Tag>
+        <Tag>{rule.gmbVersion ?? "No rule version"}</Tag>
       </div>
       <div className="metric-grid four">
         <Metric label="Market FFA" value={rate(contract.price, contract.unit)} formula="Uploaded FFA/futures price." />
         <Metric label="Expected settlement" value={rate(settlement.expectedSettlement, rule.unit)} formula={settlement.formula} />
         <Metric label="Realized / remaining" value={`${settlement.realizedDays} / ${settlement.remainingDays}`} unit="published days" formula={settlement.formula} />
         <Metric label="Implied remaining" value={settlement.impliedRemaining ? rate(settlement.impliedRemaining, rule.unit) : "N/A"} formula="(FFA price x total observations - realized sum) / remaining observations." />
+      </div>
+      <div className="registry-rules">
+        <div><b>Rule trace</b><span>{settlement.ruleVersion}</span></div>
+        <div><b>Observed prints</b><span>{settlement.observations.length} total · {settlement.realizedDays} realized · {settlement.remainingDays} remaining</span></div>
+        <div><b>Data warnings</b><span>{settlement.dataQualityWarnings.length ? settlement.dataQualityWarnings.join(" · ") : "CLEAR"}</span></div>
+        <div><b>Restatement</b><span>{settlement.restatementHandling}</span></div>
       </div>
       <div className="chart-wrap">
         <ResponsiveContainer width="100%" height={260}>

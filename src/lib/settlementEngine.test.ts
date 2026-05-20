@@ -35,7 +35,7 @@ describe("settlementEngine", () => {
       contract,
       settlementRules["P5TC-FFA"],
       prints("P5TC", "2026-05-01", [10000, 11000, 12000, 13000]),
-      { asOfDate: "2026-05-02", forecastMode: "FLAT_FORWARD" },
+      { asOfDate: "2026-05-02", forecastMode: "FLAT_FORWARD", calendar: { publishedDates: ["2026-05-01", "2026-05-02", "2026-05-03", "2026-05-04"], holidays: [] } },
     );
 
     expect(result.realizedDays).toBe(2);
@@ -50,11 +50,39 @@ describe("settlementEngine", () => {
       { ...contract, contract_code: "P1A_82-FFA", settlement_index: "P1A_82" },
       settlementRules["P1A_82-FFA"],
       prints("P1A_82", "2026-05-01", [1, 2, 3, 4, 5, 6, 7, 8, 9]),
-      { asOfDate: "2026-05-07", forecastMode: "FLAT_FORWARD" },
+      { asOfDate: "2026-05-07", forecastMode: "FLAT_FORWARD", calendar: { publishedDates: ["2026-05-01", "2026-05-02", "2026-05-03", "2026-05-04", "2026-05-05", "2026-05-06", "2026-05-07", "2026-05-08", "2026-05-09"], holidays: [] } },
     );
 
     expect(result.observations.map((row) => row.value)).toEqual([3, 4, 5, 6, 7, 8, 9]);
     expect(result.realizedDays).toBe(5);
     expect(result.remainingDays).toBe(2);
+  });
+
+  it("skips weekends by default when identifying expected publishing days", () => {
+    const rows: BalticIndexRow[] = [
+      { date: "2026-05-01", index_code: "P5TC", value: 10000, unit: "$/day" },
+      { date: "2026-05-02", index_code: "P5TC", value: 11000, unit: "$/day" },
+      { date: "2026-05-03", index_code: "P5TC", value: 12000, unit: "$/day" },
+      { date: "2026-05-04", index_code: "P5TC", value: 13000, unit: "$/day" },
+      { date: "2026-05-05", index_code: "P5TC", value: 14000, unit: "$/day" },
+    ];
+    const result = calculateSettlement(contract, settlementRules["P5TC-FFA"], rows, {
+      asOfDate: "2026-05-05",
+      forecastMode: "FLAT_FORWARD",
+    });
+
+    expect(result.observations.map((row) => row.date)).toEqual(["2026-05-01", "2026-05-04", "2026-05-05"]);
+  });
+
+  it("rejects discontinued contracts with a data quality warning", () => {
+    const discontinued = calculateSettlement(
+      { ...contract, contract_code: "P4TC-FFA", settlement_index: "P4TC" },
+      settlementRules["P4TC-FFA"],
+      prints("P4TC", "2026-05-01", [10000, 11000]),
+      { asOfDate: "2026-05-02", forecastMode: "FLAT_FORWARD" },
+    );
+
+    expect(discontinued.observations).toHaveLength(0);
+    expect(discontinued.dataQualityWarnings.join(" ")).toContain("discontinued");
   });
 });

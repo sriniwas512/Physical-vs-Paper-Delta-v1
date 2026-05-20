@@ -10,6 +10,7 @@ import type {
   SignalResult,
   VesselSpecRow,
 } from "../types";
+import { calculateRouteBasis } from "./routeBasisEngine";
 
 export function calculateSignal(input: {
   opportunity: PhysicalOpportunityRow;
@@ -25,8 +26,14 @@ export function calculateSignal(input: {
   marginCost?: number;
   basisRiskReserve?: number;
   idleDayRisk?: number;
+  indexData?: import("../types").BalticIndexRow[];
 }): SignalResult {
-  const routeBasis = routeResidual(input.route.exposure, input.ffa.settlement_index);
+  const routeBasisStats = calculateRouteBasis({
+    indexData: input.indexData ?? [],
+    physicalExposure: input.route.exposure,
+    hedgeIndex: input.ffa.settlement_index,
+  });
+  const routeBasis = -routeBasisStats.residualBasisRisk;
   const deductions =
     (input.transactionCosts ?? 75) +
     (input.hedgeCosts ?? 40) +
@@ -55,13 +62,13 @@ export function calculateSignal(input: {
     paper_edge: paperEdge,
     route_basis: routeBasis,
     recommended_hedge: input.ffa.settlement_index,
-    hedge_ratio: Math.min(1, Math.max(0.35, 1 - Math.abs(routeBasis) / 2500)),
+    hedge_ratio: routeBasisStats.recommendedHedgeRatio || Math.min(1, Math.max(0.35, 1 - Math.abs(routeBasis) / 2500)),
     net_signal: netSignal,
-    confidence: riskFlag === "CLEAR" ? 82 : riskFlag === "ROUTE_MISMATCH" ? 58 : 45,
+    confidence: riskFlag === "CLEAR" ? Math.round(routeBasisStats.confidence || 82) : riskFlag === "ROUTE_MISMATCH" ? 45 : 40,
     risk_flag: riskFlag,
     recommendation,
     explanation: explain(input, riskFlag),
-    formula: `Combined short signal = ship spec basis ${round(input.physical.shipSpecBasis)} + paper edge ${round(paperEdge)} + route alpha ${round(routeBasis)} + scrubber ${round(input.scrubber.scrubberValuePerDay)} - costs/reserves ${deductions}.`,
+    formula: `Combined short signal = normalized ship spec basis ${round(input.physical.shipSpecBasis)} $/day + paper edge ${round(paperEdge)} ${input.settlement.rule.unit} with unit-safe PnL handled by hedge engine + route residual ${round(routeBasis)} + scrubber ${round(input.scrubber.scrubberValuePerDay)} - costs/reserves ${deductions}. Route model: ${routeBasisStats.formula}`,
   };
 }
 
@@ -98,12 +105,6 @@ function explain(input: Parameters<typeof calculateSignal>[0], riskFlag: RiskFla
     .map(([route, weight]) => `${Math.round(weight * 100)}% ${route}`)
     .join(", ");
   return `User is long physical ${input.vessel.segment === "VLGC" ? "VLGC" : "Panamax"} on ${input.opportunity.load_port}-${input.opportunity.discharge_port}. Closest paper hedge is ${input.ffa.settlement_index} because the route exposure maps to ${routeNames}. ${isBlpg ? `${input.ffa.contract_code} settles in $/mt, so hedge notional is cargo tonnes, not vessel days.` : `${input.ffa.contract_code} settles in $/day, so hedge notional is exposure days.`} The real ship basis versus the Baltic artificial ship is ${round(input.physical.shipSpecBasis)} $/day and paper edge for a short is ${round(input.settlement.paperEdgeShort)}. Residual risk flag: ${riskFlag}.`;
-}
-
-function routeResidual(exposure: Record<string, number>, hedgeIndex: string): number {
-  const direct = exposure[hedgeIndex] ?? exposure[hedgeIndex.replace("_82", "")] ?? 0;
-  const concentration = Math.max(...Object.values(exposure), 0);
-  return direct >= 0.75 ? 0 : (concentration - direct) * 900;
 }
 
 const hasEmployment = (opportunity: PhysicalOpportunityRow) =>

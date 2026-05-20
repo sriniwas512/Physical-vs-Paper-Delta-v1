@@ -145,6 +145,30 @@ export type SettlementRule = {
   multiplier?: number;
   usesPublishedDaysOnly: boolean;
   missingDataPolicy: "ERROR" | "IGNORE" | "PREVIOUS_PUBLISHED";
+  gmbVersion?: string;
+  sourceReference?: string;
+  effectiveDate?: string;
+  benchmarkFamily?: BenchmarkFamily;
+  formula?: string;
+  discontinued?: boolean;
+  notes?: string;
+};
+
+export type RuleMetadata = {
+  gmbVersion: string;
+  sourceReference: string;
+  effectiveDate: string;
+  benchmarkFamily: BenchmarkFamily;
+  unit: Unit;
+  formula: string;
+  settlementBasis?: SettlementBasis;
+  discontinued: boolean;
+  notes: string;
+};
+
+export type BalticPublicationCalendar = {
+  publishedDates: string[];
+  holidays: string[];
 };
 
 export type BenchmarkShip = {
@@ -179,6 +203,7 @@ export type SettlementResult = {
   observations: BalticIndexRow[];
   realized: BalticIndexRow[];
   remaining: BalticIndexRow[];
+  missingObservationDates: string[];
   realizedDays: number;
   remainingDays: number;
   expectedSettlement: number;
@@ -186,6 +211,10 @@ export type SettlementResult = {
   paperEdgeShort: number;
   paperEdgeLong: number;
   formula: string;
+  asOfDate: string;
+  ruleVersion: string;
+  dataQualityWarnings: string[];
+  restatementHandling: string;
 };
 
 export type PhysicalResult = {
@@ -198,7 +227,11 @@ export type PhysicalResult = {
   benchmarkTce: number;
   benchmarkFreightPerMt: number;
   requiredFreightPerMt: number;
+  requiredTcOut: number;
   shipSpecBasis: number;
+  componentPnl: Record<string, number>;
+  warnings: string[];
+  sensitivity: Array<{ label: string; value: number; unit: string }>;
   formula: string;
 };
 
@@ -213,9 +246,63 @@ export type ScrubberResult = {
 export type HedgeResult = {
   notional: number;
   notionalUnit: "days" | "mt";
+  roundedLots: number;
+  roundedNotional: number;
+  executionPrice: number;
+  transactionCosts: number;
+  marginRequirement: number;
+  residualExposure: number;
+  effectivenessScore: number;
   paperPnl: number;
   warning?: string;
+  warnings?: string[];
   formula: string;
+};
+
+export type RouteBasisResult = {
+  physicalIndex: string;
+  hedgeIndex: string;
+  spread: number;
+  rollingMean: number;
+  rollingStdDev: number;
+  zScore: number;
+  beta: number;
+  correlation: number;
+  recommendedHedgeRatio: number;
+  residualBasisRisk: number;
+  confidence: number;
+  warning?: RiskFlag;
+  observations: number;
+  formula: string;
+};
+
+export type BacktestResult = {
+  status: "OK" | "INSUFFICIENT_DATA";
+  missingFields: string[];
+  equityCurve: Array<{ date: string; pnl: number; cumulativePnl: number }>;
+  historicalPnl: number;
+  hitRate: number;
+  maxDrawdown: number;
+  sharpeLike: number;
+  falseSignalCount: number;
+  routeBasisLoss: number;
+  scrubberAttribution: number;
+  settlementForecastError: number;
+  formula: string;
+};
+
+export type AuditRun = {
+  auditId: string;
+  timestamp: string;
+  sourceMetadata: Array<{ name: string; rows: number; versionId: string }>;
+  gmbVersion: string;
+  opportunityId: string;
+  contractCode: string;
+  asOfDate: string;
+  inputs: unknown;
+  outputs: unknown;
+  warnings: string[];
+  exportedReport?: string;
 };
 
 export type RiskFlag =

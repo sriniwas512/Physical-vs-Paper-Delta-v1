@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculatePaperPnl, sizeHedgeNotional } from "./hedgeEngine";
+import { calculatePaperPnl, simulateHedge, sizeHedgeNotional } from "./hedgeEngine";
 
 describe("hedgeEngine", () => {
   it("sizes day-rate paper in vessel days", () => {
@@ -26,5 +26,27 @@ describe("hedgeEngine", () => {
 
   it("calculates short paper pnl as notional times entry minus settlement", () => {
     expect(calculatePaperPnl({ side: "SHORT", notional: 44000, entryPrice: 120, settlementPrice: 110 })).toBe(440000);
+  });
+
+  it("rounds BLPG hedges to lot size and reports residual exposure", () => {
+    const hedge = simulateHedge({
+      unit: "$/mt",
+      side: "SHORT",
+      cargoQty: 44000,
+      hedgeRatio: 0.93,
+      entryPrice: 120,
+      settlementPrice: 110,
+      bid: 119,
+      lotSize: 1000,
+    });
+
+    expect(hedge.roundedLots).toBe(41);
+    expect(hedge.roundedNotional).toBe(41000);
+    expect(hedge.residualExposure).toBeCloseTo(-80);
+    expect(hedge.paperPnl).toBe(369000);
+  });
+
+  it("calculates long paper pnl as settlement minus entry", () => {
+    expect(calculatePaperPnl({ side: "LONG", notional: 10, entryPrice: 100, settlementPrice: 115 })).toBe(150);
   });
 });

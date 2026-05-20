@@ -1,68 +1,16 @@
-import { isAfter, isSameMonth, isWithinInterval, parseISO } from "date-fns";
+import { addDays, format, isAfter, isSameMonth, isWeekend, isWithinInterval, parseISO } from "date-fns";
 import type {
   BalticIndexRow,
+  BalticPublicationCalendar,
   FfaContractRow,
   ForecastMode,
   SettlementResult,
   SettlementRule,
 } from "../types";
+import { allContractRules as settlementRules } from "../rules/contractRegistry";
+import { headlineIndices } from "../rules/indexRegistry";
 
-const baseRule = (
-  contractCode: string,
-  settlementIndex: string,
-  unit: SettlementRule["unit"],
-  settlementBasis: SettlementRule["settlementBasis"],
-  options?: Partial<SettlementRule>,
-): SettlementRule => ({
-  contractCode,
-  settlementIndex,
-  unit,
-  settlementBasis,
-  sourceSeries: settlementIndex,
-  periodType: "MONTH",
-  usesPublishedDaysOnly: true,
-  missingDataPolicy: "ERROR",
-  ...options,
-});
-
-export const settlementRules: Record<string, SettlementRule> = {
-  "P5TC-FFA": baseRule("P5TC-FFA", "P5TC", "$/day", "MONTH_AVERAGE"),
-  "P6-FFA": baseRule("P6-FFA", "P6_82", "$/day", "MONTH_AVERAGE"),
-  "P8-FFA": baseRule("P8-FFA", "P8", "$/day", "MONTH_AVERAGE"),
-  "P1A_03-FFA": baseRule("P1A_03-FFA", "P1A_03", "$/pt", "MONTH_AVERAGE", {
-    sourceSeries: "P1A_82",
-    derivedAdjustment: -1284,
-  }),
-  "P2A_03-FFA": baseRule("P2A_03-FFA", "P2A_03", "$/pt", "MONTH_AVERAGE", {
-    sourceSeries: "P2A_82",
-    derivedAdjustment: -1489,
-  }),
-  "P3A_03-FFA": baseRule("P3A_03-FFA", "P3A_03", "$/pt", "MONTH_AVERAGE", {
-    sourceSeries: "P3A_82",
-    derivedAdjustment: -1302,
-  }),
-  "P1EA_03-FFA": baseRule("P1EA_03-FFA", "P1A_03", "$/pt", "LAST_7_PUBLISHED_DAYS", {
-    sourceSeries: "P1A_82",
-    derivedAdjustment: -1284,
-  }),
-  "P2EA_03-FFA": baseRule("P2EA_03-FFA", "P2A_03", "$/pt", "LAST_7_PUBLISHED_DAYS", {
-    sourceSeries: "P2A_82",
-    derivedAdjustment: -1489,
-  }),
-  "P3EA_03-FFA": baseRule("P3EA_03-FFA", "P3A_03", "$/pt", "LAST_7_PUBLISHED_DAYS", {
-    sourceSeries: "P3A_82",
-    derivedAdjustment: -1302,
-  }),
-  "P1A_82-FFA": baseRule("P1A_82-FFA", "P1A_82", "$/day", "LAST_7_PUBLISHED_DAYS"),
-  "P2A_82-FFA": baseRule("P2A_82-FFA", "P2A_82", "$/day", "LAST_7_PUBLISHED_DAYS"),
-  "P3A_82-FFA": baseRule("P3A_82-FFA", "P3A_82", "$/day", "LAST_7_PUBLISHED_DAYS"),
-  "P1EA_82-FFA": baseRule("P1EA_82-FFA", "P1A_82", "$/day", "MONTH_AVERAGE"),
-  "P2EA_82-FFA": baseRule("P2EA_82-FFA", "P2A_82", "$/day", "MONTH_AVERAGE"),
-  "P3EA_82-FFA": baseRule("P3EA_82-FFA", "P3A_82", "$/day", "MONTH_AVERAGE"),
-  "BLPG1-FFA": baseRule("BLPG1-FFA", "BLPG1", "$/mt", "MONTH_AVERAGE"),
-  "BLPG2-FFA": baseRule("BLPG2-FFA", "BLPG2", "$/mt", "MONTH_AVERAGE"),
-  "BLPG3-FFA": baseRule("BLPG3-FFA", "BLPG3", "$/mt", "MONTH_AVERAGE"),
-};
+export { settlementRules };
 
 export const p5tcFormula = [
   { indexCode: "P1A_82", weight: 0.25 },
@@ -76,23 +24,18 @@ export const balticHeadlineRules = {
   BPI: {
     label: "Baltic Panamax Index",
     unit: "index" as const,
-    rounding: "RoundedSum",
-    componentFormula: p5tcFormula,
-    multiplier: 0.111111,
-    formula:
-      "BPI = RoundedSum(P1A_82*0.25, P2A_82*0.1, P3A_82*0.25, P4_82*0.10, P6_82*0.30)*0.111111",
+    rounding: headlineIndices.BPI.rounding,
+    componentFormula: headlineIndices.BPI.componentFormula,
+    multiplier: headlineIndices.BPI.multiplier,
+    formula: `BPI = ${headlineIndices.BPI.formula}`,
   },
   BLPG: {
     label: "Baltic LPG Index",
     unit: "index" as const,
-    rounding: "RoundedAverage",
-    componentFormula: [
-      { indexCode: "BLPG1-TCE", weight: 1 / 3 },
-      { indexCode: "BLPG2-TCE", weight: 1 / 3 },
-      { indexCode: "BLPG3-TCE", weight: 1 / 3 },
-    ],
-    multiplier: 0.1,
-    formula: "BLPG = RoundedAverage(BLPG1-TCE, BLPG2-TCE, BLPG3-TCE)*0.1",
+    rounding: headlineIndices.BLPG.rounding,
+    componentFormula: headlineIndices.BLPG.componentFormula,
+    multiplier: headlineIndices.BLPG.multiplier,
+    formula: `BLPG = ${headlineIndices.BLPG.formula}`,
   },
 };
 
@@ -100,11 +43,15 @@ export function getSettlementObservationSet(
   contract: FfaContractRow,
   rule: SettlementRule,
   indexData: BalticIndexRow[],
+  calendar?: BalticPublicationCalendar,
 ): BalticIndexRow[] {
+  if (rule.discontinued) return [];
   const periodStart = parseISO(contract.period_start);
   const periodEnd = parseISO(contract.period_end);
+  const validPublishedDates = new Set(expectedPublicationDates(periodStart, periodEnd, calendar));
   const sourceRows = deriveSeries(rule, indexData).filter((row) => {
     const date = parseISO(row.date);
+    if (rule.usesPublishedDaysOnly && !validPublishedDates.has(row.date)) return false;
     if (rule.settlementBasis === "CALENDAR_AVERAGE") {
       return date.getFullYear() === periodStart.getFullYear();
     }
@@ -125,12 +72,14 @@ export function calculateSettlement(
   contract: FfaContractRow,
   rule: SettlementRule,
   indexData: BalticIndexRow[],
-  options: { asOfDate: string; forecastMode: ForecastMode; userForecast?: BalticIndexRow[] },
+  options: { asOfDate: string; forecastMode: ForecastMode; userForecast?: BalticIndexRow[]; calendar?: BalticPublicationCalendar },
 ): SettlementResult {
-  const observations = getSettlementObservationSet(contract, rule, indexData);
+  const observations = getSettlementObservationSet(contract, rule, indexData, options.calendar);
+  const expectedDates = expectedPublicationDates(parseISO(contract.period_start), parseISO(contract.period_end), options.calendar);
   const asOf = parseISO(options.asOfDate);
   const realized = observations.filter((row) => !isAfter(parseISO(row.date), asOf));
   const remaining = observations.filter((row) => isAfter(parseISO(row.date), asOf));
+  const missingObservationDates = expectedDates.filter((date) => !observations.some((row) => row.date === date));
   const realizedSum = sum(realized.map((row) => row.value));
   const forecastValues = forecastRemaining(observations, realized, remaining, options);
   const expectedSettlement = observations.length
@@ -140,12 +89,14 @@ export function calculateSettlement(
     ? (contract.price * observations.length - realizedSum) / remaining.length
     : undefined;
 
+  const warnings = dataQualityWarnings(contract, rule, observations, missingObservationDates);
   return {
     contractCode: contract.contract_code,
     rule,
     observations,
     realized,
     remaining,
+    missingObservationDates,
     realizedDays: realized.length,
     remainingDays: remaining.length,
     expectedSettlement,
@@ -153,6 +104,10 @@ export function calculateSettlement(
     paperEdgeShort: contract.price - expectedSettlement,
     paperEdgeLong: expectedSettlement - contract.price,
     formula: `${rule.settlementBasis}: (realized ${realized.length} prints + ${options.forecastMode.toLowerCase().replace("_", " ")} forecast ${remaining.length} prints) / ${observations.length}. Short edge = FFA ${contract.price} - expected settlement ${round(expectedSettlement)} ${rule.unit}.`,
+    asOfDate: options.asOfDate,
+    ruleVersion: `${rule.gmbVersion ?? "Unversioned"} / ${rule.sourceReference ?? "No source reference"}`,
+    dataQualityWarnings: warnings,
+    restatementHandling: "Placeholder: re-run settlement with restated Baltic rows and preserve prior audit snapshot.",
   };
 }
 
@@ -177,8 +132,35 @@ function deriveSeries(rule: SettlementRule, indexData: BalticIndexRow[]): Baltic
       const row = rows.find((candidate) => candidate.index_code === component.indexCode);
       return row ? total + row.value * component.weight : total;
     }, 0);
-    return value ? [{ date, index_code: rule.settlementIndex, value, unit: rule.unit }] : [];
+    return typeof value === "number" ? [{ date, index_code: rule.settlementIndex, value, unit: rule.unit }] : [];
   });
+}
+
+export function expectedPublicationDates(start: Date, end: Date, calendar?: BalticPublicationCalendar): string[] {
+  if (calendar?.publishedDates.length) {
+    return calendar.publishedDates.filter((date) => isWithinInterval(parseISO(date), { start, end }));
+  }
+  const holidays = new Set(calendar?.holidays ?? []);
+  const dates: string[] = [];
+  for (let cursor = start; !isAfter(cursor, end); cursor = addDays(cursor, 1)) {
+    const iso = format(cursor, "yyyy-MM-dd");
+    if (!isWeekend(cursor) && !holidays.has(iso)) dates.push(iso);
+  }
+  return dates;
+}
+
+function dataQualityWarnings(
+  contract: FfaContractRow,
+  rule: SettlementRule,
+  observations: BalticIndexRow[],
+  missingObservationDates: string[],
+): string[] {
+  const warnings: string[] = [];
+  if (rule.discontinued) warnings.push(`${rule.contractCode} is discontinued under ${rule.gmbVersion}; reject new hedge signals.`);
+  if (!observations.length) warnings.push("MISSING_SETTLEMENT_DAYS: no Baltic prints available for this rule and contract period.");
+  if (missingObservationDates.length) warnings.push(`MISSING_SETTLEMENT_DAYS: ${missingObservationDates.length} expected publishing days have no uploaded print.`);
+  if (contract.unit !== rule.unit) warnings.push(`UNIT_MISMATCH: uploaded ${contract.unit} but GMB rule requires ${rule.unit}.`);
+  return warnings;
 }
 
 function forecastRemaining(

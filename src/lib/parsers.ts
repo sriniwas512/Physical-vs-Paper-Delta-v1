@@ -143,17 +143,46 @@ const schemas = {
 export async function parseUploadedFile<K extends keyof DatasetMap>(
   file: File,
   dataset: K,
-): Promise<{ rows: DatasetMap[K][]; errors: string[]; columns: string[] }> {
-  const rows = file.name.endsWith(".xlsx") || file.name.endsWith(".xls") ? await parseExcel(file) : await parseCsv(file);
-  const parsed = z.array(schemas[dataset]).safeParse(rows);
-  if (!parsed.success) {
-    return {
-      rows: [],
-      errors: parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`),
-      columns: Object.keys(rows[0] ?? {}),
-    };
-  }
-  return { rows: parsed.data as DatasetMap[K][], errors: [], columns: Object.keys(rows[0] ?? {}) };
+  options?: { columnMap?: Record<string, string> },
+): Promise<{
+  rows: DatasetMap[K][];
+  errors: string[];
+  warnings: string[];
+  columns: string[];
+  previewRows: Record<string, unknown>[];
+  rejectedRows: Array<{ rowNumber: number; row: Record<string, unknown>; errors: string[] }>;
+  sourceMetadata: { fileName: string; sheetNames: string[]; rowCount: number; dataVersionId: string };
+}> {
+  const parsedFile = file.name.endsWith(".xlsx") || file.name.endsWith(".xls") ? await parseExcel(file) : { rows: await parseCsv(file), sheetNames: ["CSV"] };
+  const normalizedRows = parsedFile.rows.map((row) => normalizeRow(row, options?.columnMap));
+  const validRows: DatasetMap[K][] = [];
+  const rejectedRows: Array<{ rowNumber: number; row: Record<string, unknown>; errors: string[] }> = [];
+  normalizedRows.forEach((row, index) => {
+    const parsed = schemas[dataset].safeParse(row);
+    if (parsed.success) validRows.push(parsed.data as DatasetMap[K]);
+    else {
+      rejectedRows.push({
+        rowNumber: index + 2,
+        row,
+        errors: parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`),
+      });
+    }
+  });
+  const warnings = rejectedRows.length ? [`${rejectedRows.length} rows rejected; valid rows can still be ingested.`] : [];
+  return {
+    rows: validRows,
+    errors: validRows.length ? [] : rejectedRows.flatMap((row) => row.errors),
+    warnings,
+    rejectedRows,
+    previewRows: normalizedRows.slice(0, 8),
+    columns: Object.keys(normalizedRows[0] ?? {}),
+    sourceMetadata: {
+      fileName: file.name,
+      sheetNames: parsedFile.sheetNames,
+      rowCount: normalizedRows.length,
+      dataVersionId: `${file.name}-${file.size}-${file.lastModified}`,
+    },
+  };
 }
 
 async function parseCsv(file: File): Promise<Record<string, unknown>[]> {
@@ -162,9 +191,38 @@ async function parseCsv(file: File): Promise<Record<string, unknown>[]> {
   return result.data;
 }
 
-async function parseExcel(file: File): Promise<Record<string, unknown>[]> {
+async function parseExcel(file: File): Promise<{ rows: Record<string, unknown>[]; sheetNames: string[] }> {
   const buffer = await file.arrayBuffer();
   const workbook = XLSX.read(buffer);
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  return XLSX.utils.sheet_to_json(sheet);
+  const rows = workbook.SheetNames.flatMap((sheetName) =>
+    XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[sheetName]).map((row) => ({ ...row, source_sheet: sheetName })),
+  );
+  return { rows, sheetNames: workbook.SheetNames };
+}
+
+function normalizeRow(row: Record<string, unknown>, columnMap?: Record<string, string>): Record<string, unknown> {
+  const mapped: Record<string, unknown> = {};
+  Object.entries(row).forEach(([rawKey, value]) => {
+    const normalizedKey = normalizeColumnName(rawKey);
+    const targetKey = columnMap?.[rawKey] ?? columnMap?.[normalizedKey] ?? normalizedKey;
+    mapped[targetKey] = normalizeValue(value);
+  });
+  return mapped;
+}
+
+function normalizeColumnName(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+}
+
+function normalizeValue(value: unknown): unknown {
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    const date = Date.parse(trimmed);
+    if (/^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}$/.test(trimmed) && Number.isFinite(date)) {
+      return new Date(date).toISOString().slice(0, 10);
+    }
+    return trimmed;
+  }
+  return value;
 }

@@ -12,17 +12,20 @@ import { Panel, Tag } from "./common";
 export function SignalMonitor() {
   const state = useLabStore();
   const activeOpportunities = opportunitiesInMode(state.opportunities, state.routes, state.marketMode);
-  const signals = activeOpportunities.map((opportunity) => {
-    const vessel = state.vessels.find((item) => item.vessel_name === opportunity.vessel_name) ?? state.vessels[0];
-    const route = state.routes.find((item) => item.route_code === opportunity.route_code) ?? state.routes[0];
-    const bunker = state.bunkers[route.benchmark_family === "BLPG" ? 1 : 0];
+  const signals = activeOpportunities.flatMap((opportunity) => {
+    const vessel = state.vessels.find((item) => item.vessel_name === opportunity.vessel_name);
+    const route = state.routes.find((item) => item.route_code === opportunity.route_code);
+    if (!vessel || !route) return [];
+    const bunker = state.bunkers.find((item) => item.port === (route.benchmark_family === "BLPG" ? "Houston" : "Singapore"));
+    if (!bunker) return [];
     const benchmark = benchmarkShips[route.benchmark_family === "BLPG" ? "VLGC84_STANDARD_SHIP" : "BPI82_STANDARD_SHIP"];
     const ffa =
       state.ffas.find((item) =>
         route.benchmark_family === "BLPG" ? item.contract_code === "BLPG3-FFA" : item.contract_code === "P6-FFA",
-      ) ?? state.ffas[0];
+      );
+    if (!ffa || !settlementRules[ffa.contract_code]) return [];
     const settlement = calculateSettlement(ffa, settlementRules[ffa.contract_code], state.baltic, {
-      asOfDate: "2026-05-14",
+      asOfDate: state.asOfDate,
       forecastMode: state.forecastMode,
     });
     const physical = calculatePhysicalEconomics({ opportunity, vessel, route, bunker, benchmarkShip: benchmark });
@@ -34,6 +37,8 @@ export function SignalMonitor() {
       hsfoPrice: bunker.HSFO,
       vlsfoPrice: bunker.VLSFO,
       eligibleScrubberSeaDays: opportunity.laden_days + opportunity.ballast_days,
+      eligibleScrubberLadenDays: opportunity.laden_days,
+      eligibleScrubberBallastDays: opportunity.ballast_days,
       scrubberOffDays: 1,
       extraScrubberOpexPerDay: 650,
       washwaterRestrictionAdjustment: 12000,
@@ -46,8 +51,11 @@ export function SignalMonitor() {
       hedgeRatio: state.hedgeRatio,
       entryPrice: ffa.price,
       settlementPrice: settlement.expectedSettlement,
+      bid: ffa.bid,
+      ask: ffa.ask,
+      lotSize: ffa.lot_size,
     });
-    return calculateSignal({ opportunity, vessel, route, physical, scrubber, settlement, hedge, ffa });
+    return calculateSignal({ opportunity, vessel, route, physical, scrubber, settlement, hedge, ffa, indexData: state.baltic });
   });
 
   return (
@@ -64,6 +72,7 @@ export function SignalMonitor() {
               <th>Paper edge</th>
               <th>Hedge</th>
               <th>Net signal</th>
+              <th>Confidence</th>
               <th>Risk</th>
               <th>Recommendation</th>
             </tr>
@@ -79,6 +88,7 @@ export function SignalMonitor() {
                 <td>{rate(signal.paper_edge, "$/day")}</td>
                 <td>{signal.recommended_hedge} · {Math.round(signal.hedge_ratio * 100)}%</td>
                 <td>{money(signal.net_signal, "$", 0)}</td>
+                <td>{signal.confidence}%</td>
                 <td><Tag tone={signal.risk_flag === "CLEAR" ? "good" : "warn"}>{signal.risk_flag}</Tag></td>
                 <td><Tag tone={signal.recommendation.includes("STRONG") ? "good" : signal.recommendation === "NO TRADE" ? "bad" : "neutral"}>{signal.recommendation}</Tag></td>
               </tr>
