@@ -5,6 +5,7 @@ import { calculateSettlement, settlementRules } from "../lib/settlementEngine";
 import { simulateHedge } from "../lib/hedgeEngine";
 import { calculateSignal } from "../lib/signalEngine";
 import { createAuditRun, saveAuditRun } from "../lib/auditStore";
+import { buildTradeActionPlan } from "../lib/tradeActionEngine";
 import { benchmarkShips } from "../data/panamaxSeedData";
 import { money, rate } from "../lib/format";
 import { useLabStore } from "../store";
@@ -19,12 +20,14 @@ export function TradeExecutionPlan() {
     return <Panel title="Trade Execution Plan" description="Actionable plan."><div className="empty-state">Insufficient data: {analysis.missing}</div></Panel>;
   }
 
-  const { opportunity, contract, rule, physical, settlement, hedge, signal, physicalPnl, finalPnl, classification, audit } = analysis;
+  const { opportunity, rule, physical, settlement, hedge, signal, physicalPnl, finalPnl, actionPlan, audit } = analysis;
 
   return (
     <Panel title="Trade Execution Plan" description="Specific physical and paper actions generated from rule-traced calculations.">
       <div className="toolbar">
-        <Tag tone={classification.includes("no trade") || classification.includes("dangerous") ? "bad" : "good"}>{classification}</Tag>
+        <Tag tone={actionPlan.tradeClass.includes("no trade") || actionPlan.tradeClass.includes("dangerous") ? "bad" : "good"}>{actionPlan.tradeClass}</Tag>
+        <Tag>{actionPlan.employmentMode}</Tag>
+        <Tag>{actionPlan.paperSide === "NONE" ? "No paper order" : `${actionPlan.paperSide} paper`}</Tag>
         <Tag>Audit source: {rule.gmbVersion}</Tag>
         <Tag>{audit.auditId}</Tag>
         <Tag>As-of {state.asOfDate}</Tag>
@@ -32,15 +35,28 @@ export function TradeExecutionPlan() {
         <button onClick={() => navigator.clipboard.writeText(JSON.stringify(audit, null, 2))}>Copy audit JSON</button>
       </div>
       <div className="execution-grid">
-        <div><b>Physical action</b><span>{physicalAction(signal.recommendation, opportunity.trade_type)}</span></div>
-        <div><b>Paper action</b><span>{signal.recommendation === "NO TRADE" ? "Do not trade paper." : `Short ${contract.contract_code} at bid ${contract.bid}; hedge ${hedge.roundedLots} rounded lots.`}</span></div>
+        <div><b>What to do with the ship</b><span>{actionPlan.shipAction}</span></div>
+        <div><b>Derivative order</b><span>{actionPlan.derivativeAction}</span></div>
         <div><b>Hedge notional</b><span>{hedge.notional.toLocaleString()} {hedge.notionalUnit}; rounded {hedge.roundedNotional.toLocaleString()} {hedge.notionalUnit}</span></div>
         <div><b>Expected settlement</b><span>{rate(settlement.expectedSettlement, rule.unit)} using {rule.settlementBasis}</span></div>
         <div><b>Expected final PnL</b><span>{money(finalPnl)}</span></div>
         <div><b>Worst-case basis risk</b><span>{money(Math.abs(signal.route_basis * opportunity.voyage_days))}</span></div>
-        <div><b>Stop-loss</b><span>{money(-Math.max(50000, Math.abs(finalPnl) * 0.35))} or route z-score beyond +/-2.</span></div>
-        <div><b>Exit trigger</b><span>Exit if paper edge compresses below zero, employment changes, or GMB/data warning appears.</span></div>
+        <div><b>Stop-loss</b><span>{actionPlan.stopLoss}</span></div>
+        <div><b>Exit trigger</b><span>{actionPlan.exitTrigger}</span></div>
       </div>
+      <div className="execution-list">
+        <b>Execution sequence</b>
+        <ol>
+          {actionPlan.actionSteps.map((step) => <li key={step}>{step}</li>)}
+        </ol>
+      </div>
+      <div className="execution-list danger-list">
+        <b>Do not do</b>
+        <ul>
+          {actionPlan.doNotDo.map((step) => <li key={step}>{step}</li>)}
+        </ul>
+      </div>
+      <div className="explain-box">{actionPlan.rationale}</div>
       <div className="explain-box">{signal.explanation}</div>
       <div className="registry-rules">
         <div><b>Risk-adjusted PnL bridge</b><span>Physical {money(physicalPnl)} + paper {money(hedge.paperPnl)} - transaction {money(hedge.transactionCosts)} - margin carry {money(hedge.marginRequirement * 0.02)} = {money(finalPnl)}</span></div>
@@ -96,7 +112,7 @@ function buildExecutionAnalysis(state: ReturnType<typeof useLabStore.getState>) 
   const signal = calculateSignal({ opportunity, vessel, route, physical, scrubber, settlement, hedge, ffa: contract, indexData: state.baltic });
   const physicalPnl = physical.physicalEdge * opportunity.voyage_days;
   const finalPnl = physicalPnl + hedge.paperPnl - hedge.transactionCosts - hedge.marginRequirement * 0.02;
-  const classification = classify(signal.recommendation, signal.risk_flag);
+  const actionPlan = buildTradeActionPlan({ opportunity, route, contract, physical, settlement, hedge, signal, finalPnl });
   const audit = createAuditRun({
     sourceMetadata: [
       { name: "Baltic index rows", rows: state.baltic.length, versionId: `baltic-${state.baltic.length}` },
@@ -107,25 +123,15 @@ function buildExecutionAnalysis(state: ReturnType<typeof useLabStore.getState>) 
     contractCode: contract.contract_code,
     asOfDate: state.asOfDate,
     inputs: { opportunity, contract, rule, route, vessel },
-    outputs: { physical, scrubber, settlement, hedge, signal, finalPnl },
+    outputs: { physical, scrubber, settlement, hedge, signal, actionPlan, finalPnl },
     warnings: [...settlement.dataQualityWarnings, ...(hedge.warnings ?? []), ...physical.warnings],
-    exportedReport: signal.explanation,
+    exportedReport: [
+      `Ship action: ${actionPlan.shipAction}`,
+      `Derivative action: ${actionPlan.derivativeAction}`,
+      `Trade class: ${actionPlan.tradeClass}`,
+      `Rationale: ${actionPlan.rationale}`,
+      `Signal note: ${signal.explanation}`,
+    ].join("\n"),
   });
-  return { opportunity, contract, rule, physical, settlement, hedge, signal, physicalPnl, finalPnl, classification, audit };
-}
-
-function classify(recommendation: string, riskFlag: string): string {
-  if (recommendation === "DANGEROUS FALSE ARBITRAGE" || riskFlag === "NO_EMPLOYMENT_PLAN") return "dangerous false arbitrage";
-  if (recommendation === "STRONG LONG PHYSICAL / SHORT PAPER") return "basis trade";
-  if (recommendation === "LONG PHYSICAL ONLY") return "physical-only trade";
-  if (recommendation === "PAPER ONLY") return "paper-only trade";
-  if (riskFlag === "CLEAR" && recommendation !== "NO TRADE") return "relative value trade";
-  return "no trade";
-}
-
-function physicalAction(recommendation: string, tradeType: string): string {
-  if (recommendation === "NO TRADE" || recommendation === "DANGEROUS FALSE ARBITRAGE") return "Do not add physical exposure until employment and hedge sizing are complete.";
-  if (tradeType === "TC_IN_AND_VOYAGE") return "Fix the voyage/cargo employment only if bunker, laycan and route assumptions remain inside warning limits.";
-  if (tradeType === "TC_IN_AND_TC_OUT") return "Lock TC-out cover and verify scrubber premium capture before paper execution.";
-  return "Proceed with the selected physical exposure subject to warnings.";
+  return { opportunity, contract, rule, physical, settlement, hedge, signal, physicalPnl, finalPnl, actionPlan, audit };
 }
