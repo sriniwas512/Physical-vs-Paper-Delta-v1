@@ -42,7 +42,8 @@ textarea {
 
 button,
 select,
-input[type="file"]::file-selector-button {
+input[type="file"]::file-selector-button,
+.button-like {
   border: 1px solid var(--line);
   background: #101c26;
   color: var(--text);
@@ -52,6 +53,12 @@ input[type="file"]::file-selector-button {
 
 button {
   cursor: pointer;
+}
+
+.button-like {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
 }
 
 select,
@@ -481,6 +488,19 @@ tr:hover td {
 
 .warning-line {
   color: var(--amber);
+}
+
+.upload-report {
+  margin-top: 14px;
+}
+
+.compact-table {
+  margin-top: 12px;
+}
+
+.compact-table table {
+  min-width: 720px;
+  font-size: 12px;
 }
 
 .inline-field {

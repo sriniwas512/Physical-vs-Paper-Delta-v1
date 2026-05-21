@@ -114,6 +114,13 @@ export type BunkerRow = {
   currency: string;
 };
 
+export type PublicationCalendarRow = {
+  date: string;
+  is_published: boolean;
+  is_holiday: boolean;
+  notes?: string;
+};
+
 export type RouteDistanceRow = {
   route_code: string;
   benchmark_family: BenchmarkFamily;
@@ -259,6 +266,17 @@ export type HedgeResult = {
   formula: string;
 };
 
+export type NormalizedPaperEdge = {
+  nativeEdge: number;
+  nativeUnit: Unit;
+  usdTotal: number;
+  usdPerDayEq: number;
+  notional: number;
+  notionalUnit: "days" | "mt" | "points";
+  formula: string;
+  warnings: string[];
+};
+
 export type RouteBasisResult = {
   physicalIndex: string;
   hedgeIndex: string;
@@ -324,7 +342,16 @@ export type SignalResult = {
   ship_spec_basis: number;
   scrubber_value: number;
   paper_edge: number;
+  paper_unit: Unit;
   route_basis: number;
+  normalized_paper_edge_per_day: number;
+  physical_pnl: number;
+  paper_pnl: number;
+  hedge_pnl: number;
+  residual_basis_pnl: number;
+  transaction_costs: number;
+  margin_carry_costs: number;
+  final_risk_adjusted_pnl: number;
   recommended_hedge: string;
   hedge_ratio: number;
   net_signal: number;

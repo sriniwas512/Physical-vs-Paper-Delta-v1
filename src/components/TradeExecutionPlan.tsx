@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { calculatePhysicalEconomics } from "../lib/physicalEngine";
 import { calculateScrubberValue } from "../lib/scrubberEngine";
 import { calculateSettlement, settlementRules } from "../lib/settlementEngine";
@@ -9,14 +9,11 @@ import { benchmarkShips } from "../data/mockData";
 import { money, rate } from "../lib/format";
 import { useLabStore } from "../store";
 import { Panel, Tag } from "./common";
+import { toBalticPublicationCalendar } from "../lib/calendar";
 
 export function TradeExecutionPlan() {
   const state = useLabStore();
   const analysis = useMemo(() => buildExecutionAnalysis(state), [state]);
-
-  useEffect(() => {
-    if (!("missing" in analysis)) saveAuditRun(analysis.audit);
-  }, [analysis]);
 
   if ("missing" in analysis) {
     return <Panel title="Trade Execution Plan" description="Actionable plan."><div className="empty-state">Insufficient data: {analysis.missing}</div></Panel>;
@@ -31,6 +28,8 @@ export function TradeExecutionPlan() {
         <Tag>Audit source: {rule.gmbVersion}</Tag>
         <Tag>{audit.auditId}</Tag>
         <Tag>As-of {state.asOfDate}</Tag>
+        <button onClick={() => saveAuditRun(audit)}>Save audit locally</button>
+        <button onClick={() => navigator.clipboard.writeText(JSON.stringify(audit, null, 2))}>Copy audit JSON</button>
       </div>
       <div className="execution-grid">
         <div><b>Physical action</b><span>{physicalAction(signal.recommendation, opportunity.trade_type)}</span></div>
@@ -77,7 +76,11 @@ function buildExecutionAnalysis(state: ReturnType<typeof useLabStore.getState>) 
     extraScrubberOpexPerDay: 650,
     washwaterRestrictionAdjustment: 12000,
   });
-  const settlement = calculateSettlement(contract, rule, state.baltic, { asOfDate: state.asOfDate, forecastMode: state.forecastMode });
+  const settlement = calculateSettlement(contract, rule, state.baltic, {
+    asOfDate: state.asOfDate,
+    forecastMode: state.forecastMode,
+    calendar: toBalticPublicationCalendar(state.publicationCalendar),
+  });
   const hedge = simulateHedge({
     unit: rule.unit,
     side: "SHORT",

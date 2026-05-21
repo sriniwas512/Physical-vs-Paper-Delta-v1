@@ -10,6 +10,7 @@ import type {
   SignalResult,
   VesselSpecRow,
 } from "../types";
+import { normalizePaperEdge } from "./economicNormalization";
 import { calculateRouteBasis } from "./routeBasisEngine";
 
 export function calculateSignal(input: {
@@ -28,12 +29,28 @@ export function calculateSignal(input: {
   idleDayRisk?: number;
   indexData?: import("../types").BalticIndexRow[];
 }): SignalResult {
+  const exposureDays = input.opportunity.voyage_days || input.opportunity.laden_days + input.opportunity.ballast_days;
+  const normalizedPaper = normalizePaperEdge({
+    unit: input.settlement.rule.unit,
+    side: "SHORT",
+    entryPrice: input.ffa.price,
+    expectedSettlement: input.settlement.expectedSettlement,
+    cargoQty: input.opportunity.cargo_qty,
+    exposureDays,
+    hedgeRatio:
+      input.hedge.notionalUnit === "mt"
+        ? input.hedge.roundedNotional / Math.max(input.opportunity.cargo_qty, 1)
+        : input.hedge.roundedNotional / Math.max(exposureDays, 1),
+  });
   const routeBasisStats = calculateRouteBasis({
     indexData: input.indexData ?? [],
     physicalExposure: input.route.exposure,
     hedgeIndex: input.ffa.settlement_index,
   });
   const routeBasis = -routeBasisStats.residualBasisRisk;
+  const physicalPnl = input.physical.physicalEdge * exposureDays;
+  const residualBasisPnl = routeBasis * exposureDays;
+  const marginCarryCost = input.hedge.marginRequirement * 0.02;
   const deductions =
     (input.transactionCosts ?? 75) +
     (input.hedgeCosts ?? 40) +
@@ -41,7 +58,9 @@ export function calculateSignal(input: {
     (input.basisRiskReserve ?? 120) +
     (input.idleDayRisk ?? 80);
   const paperEdge = input.settlement.paperEdgeShort;
-  const netSignal = input.physical.shipSpecBasis + paperEdge + routeBasis + input.scrubber.scrubberValuePerDay - deductions;
+  const netSignal = input.physical.shipSpecBasis + normalizedPaper.usdPerDayEq + routeBasis + input.scrubber.scrubberValuePerDay - deductions;
+  const finalRiskAdjustedPnl =
+    physicalPnl + normalizedPaper.usdTotal + residualBasisPnl - input.hedge.transactionCosts - marginCarryCost;
   const riskFlag = firstRiskFlag(input, routeBasis);
   const recommendation = recommendationFor({
     riskFlag,
@@ -60,7 +79,16 @@ export function calculateSignal(input: {
     ship_spec_basis: input.physical.shipSpecBasis,
     scrubber_value: input.scrubber.scrubberValuePerDay,
     paper_edge: paperEdge,
+    paper_unit: input.settlement.rule.unit,
     route_basis: routeBasis,
+    normalized_paper_edge_per_day: normalizedPaper.usdPerDayEq,
+    physical_pnl: physicalPnl,
+    paper_pnl: normalizedPaper.usdTotal,
+    hedge_pnl: input.hedge.paperPnl,
+    residual_basis_pnl: residualBasisPnl,
+    transaction_costs: input.hedge.transactionCosts,
+    margin_carry_costs: marginCarryCost,
+    final_risk_adjusted_pnl: finalRiskAdjustedPnl,
     recommended_hedge: input.ffa.settlement_index,
     hedge_ratio: routeBasisStats.recommendedHedgeRatio || Math.min(1, Math.max(0.35, 1 - Math.abs(routeBasis) / 2500)),
     net_signal: netSignal,
@@ -68,7 +96,7 @@ export function calculateSignal(input: {
     risk_flag: riskFlag,
     recommendation,
     explanation: explain(input, riskFlag),
-    formula: `Combined short signal = normalized ship spec basis ${round(input.physical.shipSpecBasis)} $/day + paper edge ${round(paperEdge)} ${input.settlement.rule.unit} with unit-safe PnL handled by hedge engine + route residual ${round(routeBasis)} + scrubber ${round(input.scrubber.scrubberValuePerDay)} - costs/reserves ${deductions}. Route model: ${routeBasisStats.formula}`,
+    formula: `Combined short signal = ship spec basis ${round(input.physical.shipSpecBasis)} $/day + normalized paper ${round(normalizedPaper.usdPerDayEq)} $/day equivalent + route residual ${round(routeBasis)} $/day + scrubber ${round(input.scrubber.scrubberValuePerDay)} $/day - costs/reserves ${deductions}. Native paper edge remains ${round(paperEdge)} ${input.settlement.rule.unit}. ${normalizedPaper.formula} Route model: ${routeBasisStats.formula}`,
   };
 }
 

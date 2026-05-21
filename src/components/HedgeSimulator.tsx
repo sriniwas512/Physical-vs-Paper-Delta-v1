@@ -5,6 +5,7 @@ import { benchmarkShips } from "../data/mockData";
 import { money } from "../lib/format";
 import { defaultContractByMode, isFfaInMode, opportunitiesInMode } from "../lib/marketMode";
 import { useLabStore } from "../store";
+import { toBalticPublicationCalendar } from "../lib/calendar";
 import { Field, Metric, Panel, Tag } from "./common";
 
 export function HedgeSimulator() {
@@ -27,6 +28,7 @@ export function HedgeSimulator() {
   const settlement = calculateSettlement(contract, settlementRules[contract.contract_code], state.baltic, {
     asOfDate: state.asOfDate,
     forecastMode: state.forecastMode,
+    calendar: toBalticPublicationCalendar(state.publicationCalendar),
   });
   const hedge = simulateHedge({
     unit: contract.unit,

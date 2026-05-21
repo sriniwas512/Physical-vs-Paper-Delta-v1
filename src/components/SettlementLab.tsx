@@ -2,11 +2,12 @@ import { Area, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveCont
 import { calculateSettlement, settlementRules } from "../lib/settlementEngine";
 import { number, rate } from "../lib/format";
 import { defaultContractByMode, isFfaInMode } from "../lib/marketMode";
+import { toBalticPublicationCalendar } from "../lib/calendar";
 import { useLabStore } from "../store";
 import { Metric, Panel, Tag } from "./common";
 
 export function SettlementLab() {
-  const { baltic, ffas, selectedContractCode, setSelectedContractCode, forecastMode, setForecastMode, asOfDate, setAsOfDate } = useLabStore();
+  const { baltic, ffas, selectedContractCode, setSelectedContractCode, forecastMode, setForecastMode, asOfDate, setAsOfDate, publicationCalendar } = useLabStore();
   const marketMode = useLabStore((state) => state.marketMode);
   const activeFfas = ffas.filter((ffa) => isFfaInMode(ffa, marketMode));
   const contract =
@@ -17,6 +18,7 @@ export function SettlementLab() {
   const settlement = calculateSettlement(contract, rule, baltic, {
     asOfDate,
     forecastMode,
+    calendar: toBalticPublicationCalendar(publicationCalendar),
   });
   const chartRows = settlement.observations.map((row) => ({
     date: row.date.slice(5),

@@ -6,6 +6,7 @@ import type {
   BunkerRow,
   FfaContractRow,
   PhysicalOpportunityRow,
+  PublicationCalendarRow,
   RouteDistanceRow,
   VesselSpecRow,
 } from "../types";
@@ -122,6 +123,13 @@ export const routeSchema = z.object({
   route_notes: z.string().optional(),
 });
 
+export const publicationCalendarSchema = z.object({
+  date: z.string(),
+  is_published: boolish,
+  is_holiday: boolish,
+  notes: z.string().optional(),
+});
+
 type DatasetMap = {
   baltic: BalticIndexRow;
   ffa: FfaContractRow;
@@ -129,6 +137,7 @@ type DatasetMap = {
   opportunity: PhysicalOpportunityRow;
   bunker: BunkerRow;
   route: RouteDistanceRow;
+  calendar: PublicationCalendarRow;
 };
 
 const schemas = {
@@ -138,6 +147,7 @@ const schemas = {
   opportunity: opportunitySchema,
   bunker: bunkerSchema,
   route: routeSchema,
+  calendar: publicationCalendarSchema,
 };
 
 export async function parseUploadedFile<K extends keyof DatasetMap>(

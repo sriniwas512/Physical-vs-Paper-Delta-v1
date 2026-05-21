@@ -7,6 +7,7 @@ import { benchmarkShips } from "../data/mockData";
 import { money, rate } from "../lib/format";
 import { opportunitiesInMode } from "../lib/marketMode";
 import { useLabStore } from "../store";
+import { toBalticPublicationCalendar } from "../lib/calendar";
 import { Panel, Tag } from "./common";
 
 export function SignalMonitor() {
@@ -20,13 +21,13 @@ export function SignalMonitor() {
     if (!bunker) return [];
     const benchmark = benchmarkShips[route.benchmark_family === "BLPG" ? "VLGC84_STANDARD_SHIP" : "BPI82_STANDARD_SHIP"];
     const ffa =
-      state.ffas.find((item) =>
-        route.benchmark_family === "BLPG" ? item.contract_code === "BLPG3-FFA" : item.contract_code === "P6-FFA",
-      );
+      state.ffas.find((item) => item.contract_code === state.selectedContractCode) ??
+      state.ffas.find((item) => route.benchmark_family === "BLPG" ? item.contract_code === "BLPG3-FFA" : item.contract_code === "P6-FFA");
     if (!ffa || !settlementRules[ffa.contract_code]) return [];
     const settlement = calculateSettlement(ffa, settlementRules[ffa.contract_code], state.baltic, {
       asOfDate: state.asOfDate,
       forecastMode: state.forecastMode,
+      calendar: toBalticPublicationCalendar(state.publicationCalendar),
     });
     const physical = calculatePhysicalEconomics({ opportunity, vessel, route, bunker, benchmarkShip: benchmark });
     const scrubber = calculateScrubberValue({
@@ -70,8 +71,9 @@ export function SignalMonitor() {
               <th>Physical edge</th>
               <th>Ship basis</th>
               <th>Paper edge</th>
+              <th>Norm paper</th>
               <th>Hedge</th>
-              <th>Net signal</th>
+              <th>Risk-adjusted PnL</th>
               <th>Confidence</th>
               <th>Risk</th>
               <th>Recommendation</th>
@@ -85,9 +87,10 @@ export function SignalMonitor() {
                 <td>{signal.route}</td>
                 <td>{rate(signal.physical_edge, "$/day")}</td>
                 <td>{rate(signal.ship_spec_basis, "$/day")}</td>
-                <td>{rate(signal.paper_edge, "$/day")}</td>
+                <td>{rate(signal.paper_edge, signal.paper_unit)}</td>
+                <td>{rate(signal.normalized_paper_edge_per_day, "$/day")}</td>
                 <td>{signal.recommended_hedge} · {Math.round(signal.hedge_ratio * 100)}%</td>
-                <td>{money(signal.net_signal, "$", 0)}</td>
+                <td>{money(signal.final_risk_adjusted_pnl, "$", 0)}</td>
                 <td>{signal.confidence}%</td>
                 <td><Tag tone={signal.risk_flag === "CLEAR" ? "good" : "warn"}>{signal.risk_flag}</Tag></td>
                 <td><Tag tone={signal.recommendation.includes("STRONG") ? "good" : signal.recommendation === "NO TRADE" ? "bad" : "neutral"}>{signal.recommendation}</Tag></td>

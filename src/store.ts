@@ -15,6 +15,7 @@ import type {
   FfaContractRow,
   ForecastMode,
   PhysicalOpportunityRow,
+  PublicationCalendarRow,
   RouteDistanceRow,
   ScrubberCaptureMode,
   VesselSpecRow,
@@ -28,6 +29,7 @@ type LabStore = {
   opportunities: PhysicalOpportunityRow[];
   bunkers: BunkerRow[];
   routes: RouteDistanceRow[];
+  publicationCalendar: PublicationCalendarRow[];
   marketMode: BenchmarkFamily;
   selectedOpportunityId: string;
   selectedContractCode: string;
@@ -43,11 +45,31 @@ type LabStore = {
   setScrubberMode: (mode: ScrubberCaptureMode) => void;
   setHedgeRatio: (ratio: number) => void;
   setAsOfDate: (date: string) => void;
-  ingest: <K extends "baltic" | "ffas" | "vessels" | "opportunities" | "bunkers" | "routes">(
+  ingest: <K extends "baltic" | "ffas" | "vessels" | "opportunities" | "bunkers" | "routes" | "publicationCalendar">(
     key: K,
     rows: LabStore[K],
   ) => void;
+  importWorkspace: (workspace: Partial<LabStoreSnapshot>) => void;
 };
+
+export type LabStoreSnapshot = Pick<
+  LabStore,
+  | "baltic"
+  | "ffas"
+  | "vessels"
+  | "opportunities"
+  | "bunkers"
+  | "routes"
+  | "publicationCalendar"
+  | "marketMode"
+  | "selectedOpportunityId"
+  | "selectedContractCode"
+  | "forecastMode"
+  | "scrubberMode"
+  | "hedgeRatio"
+  | "hedgeSide"
+  | "asOfDate"
+>;
 
 export const useLabStore = create<LabStore>((set) => ({
   baltic: balticIndexData,
@@ -56,6 +78,7 @@ export const useLabStore = create<LabStore>((set) => ({
   opportunities,
   bunkers,
   routes,
+  publicationCalendar: [],
   marketMode: "BLPG",
   selectedOpportunityId: opportunities[1].opportunity_id,
   selectedContractCode: "BLPG3-FFA",
@@ -77,4 +100,5 @@ export const useLabStore = create<LabStore>((set) => ({
   setHedgeRatio: (hedgeRatio) => set({ hedgeRatio }),
   setAsOfDate: (asOfDate) => set({ asOfDate }),
   ingest: (key, rows) => set({ [key]: rows } as Pick<LabStore, typeof key>),
+  importWorkspace: (workspace) => set(workspace),
 }));

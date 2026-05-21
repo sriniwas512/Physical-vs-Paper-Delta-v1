@@ -10,10 +10,13 @@ import { Panel } from "./common";
 export function BasisWaterfall() {
   const state = useLabStore();
   const activeOpportunities = opportunitiesInMode(state.opportunities, state.routes, state.marketMode);
-  const opportunity = activeOpportunities.find((item) => item.opportunity_id === state.selectedOpportunityId) ?? activeOpportunities[0];
-  const vessel = state.vessels.find((item) => item.vessel_name === opportunity.vessel_name) ?? state.vessels[0];
-  const route = state.routes.find((item) => item.route_code === opportunity.route_code) ?? state.routes[0];
-  const bunker = state.bunkers[route.benchmark_family === "BLPG" ? 1 : 0];
+  const opportunity = activeOpportunities.find((item) => item.opportunity_id === state.selectedOpportunityId);
+  if (!opportunity) return <Panel title="Basis Decomposition" description="Computed basis components."><div className="empty-state">Insufficient data: selected opportunity missing.</div></Panel>;
+  const vessel = state.vessels.find((item) => item.vessel_name === opportunity.vessel_name);
+  const route = state.routes.find((item) => item.route_code === opportunity.route_code);
+  if (!vessel || !route) return <Panel title="Basis Decomposition" description="Computed basis components."><div className="empty-state">Insufficient data: vessel or route missing.</div></Panel>;
+  const bunker = state.bunkers.find((item) => item.port === (route.benchmark_family === "BLPG" ? "Houston" : "Singapore"));
+  if (!bunker) return <Panel title="Basis Decomposition" description="Computed basis components."><div className="empty-state">Insufficient data: matching bunker row missing.</div></Panel>;
   const benchmark = benchmarkShips[route.benchmark_family === "BLPG" ? "VLGC84_STANDARD_SHIP" : "BPI82_STANDARD_SHIP"];
   const physical = calculatePhysicalEconomics({ opportunity, vessel, route, bunker, benchmarkShip: benchmark });
   const scrubber = calculateScrubberValue({
@@ -24,20 +27,21 @@ export function BasisWaterfall() {
     hsfoPrice: bunker.HSFO,
     vlsfoPrice: bunker.VLSFO,
     eligibleScrubberSeaDays: opportunity.laden_days + opportunity.ballast_days,
+    eligibleScrubberLadenDays: opportunity.laden_days,
+    eligibleScrubberBallastDays: opportunity.ballast_days,
     scrubberOffDays: 1,
     extraScrubberOpexPerDay: 650,
     washwaterRestrictionAdjustment: 12000,
   });
   const rows = [
     { name: "Baltic TCE", value: physical.benchmarkTce },
-    { name: "Fuel efficiency", value: (benchmark.laden_consumption - vessel.laden_consumption) * 155 },
+    { name: "Fuel efficiency", value: fuelEfficiencyBasis(opportunity, vessel, benchmark, bunker.VLSFO) },
     { name: "Scrubber", value: scrubber.scrubberValuePerDay },
     { name: "Speed", value: (vessel.laden_speed - benchmark.laden_speed) * 420 },
     { name: "Intake/cbm", value: (vessel.cbm - (benchmark.cbm ?? benchmark.grain_cbm ?? vessel.cbm)) * 0.04 },
-    { name: "Position", value: 520 },
-    { name: "Laycan", value: 280 },
+    { name: "Commercial premium", value: vessel.commercial_premium_or_discount },
+    { name: "Route cost delta", value: -(physical.voyageCosts / Math.max(opportunity.voyage_days, 1)) },
     { name: "Hire premium", value: -Math.max(opportunity.tc_in_hire - physical.benchmarkTce, 0) },
-    { name: "Costs", value: -physical.voyageCosts / Math.max(opportunity.voyage_days, 1) },
     { name: "Actual TCE", value: physical.actualTce },
   ];
 
@@ -60,4 +64,16 @@ export function BasisWaterfall() {
       </div>
     </Panel>
   );
+}
+
+function fuelEfficiencyBasis(
+  opportunity: { laden_days: number; ballast_days: number; voyage_days: number },
+  vessel: { laden_consumption: number; ballast_consumption: number },
+  benchmark: { laden_consumption: number; ballast_consumption: number },
+  fuelPrice: number,
+) {
+  const saving =
+    (benchmark.laden_consumption - vessel.laden_consumption) * opportunity.laden_days * fuelPrice +
+    (benchmark.ballast_consumption - vessel.ballast_consumption) * opportunity.ballast_days * fuelPrice;
+  return saving / Math.max(opportunity.voyage_days, 1);
 }

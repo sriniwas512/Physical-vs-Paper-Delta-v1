@@ -6,6 +6,7 @@ import { pct } from "./lib/format";
 import { GMB_VERSION } from "./rules/gmbVersion";
 import { physicalRouteIndices, headlineIndices } from "./rules/indexRegistry";
 import { discontinuedContractRules, forwardContractRules } from "./rules/contractRegistry";
+import { createWorkspaceFile, deserializeWorkspace, downloadTextFile, serializeWorkspace } from "./lib/workspace";
 import { useLabStore } from "./store";
 import { isFfaInMode } from "./lib/marketMode";
 import { UploadWizard } from "./components/UploadWizard";
@@ -152,7 +153,7 @@ function App() {
                 <article className="registry-card" key={ship.code}>
                   <div>
                     <h3>{ship.label}</h3>
-                    <Tag tone="warn">edited from GMB default</Tag>
+                    <Tag tone="good">GMB default</Tag>
                   </div>
                   <dl>
                     <dt>DWT / CBM</dt><dd>{ship.dwt.toLocaleString()} / {(ship.cbm ?? ship.grain_cbm ?? 0).toLocaleString()}</dd>
@@ -190,12 +191,52 @@ function App() {
 }
 
 function ExportPanel() {
-  const { selectedOpportunityId, selectedContractCode } = useLabStore();
+  const state = useLabStore();
+  const { selectedOpportunityId, selectedContractCode } = state;
   const markdown = `# Trade thesis\nLong physical opportunity ${selectedOpportunityId} against short ${selectedContractCode} where the real ship outperforms the Baltic benchmark ship and paper is rich versus expected settlement.\n\n## Settlement mechanism\nUse registered settlement rule, separate realized Baltic prints from remaining forecast days, and do not compare $/mt BLPG paper directly with $/day TCE.\n\n## Risk flags\nEmployment plan, route mismatch, settlement mismatch, scrubber capture and bunker data are reviewed before signal approval.`;
+  const snapshot = {
+    baltic: state.baltic,
+    ffas: state.ffas,
+    vessels: state.vessels,
+    opportunities: state.opportunities,
+    bunkers: state.bunkers,
+    routes: state.routes,
+    publicationCalendar: state.publicationCalendar,
+    marketMode: state.marketMode,
+    selectedOpportunityId: state.selectedOpportunityId,
+    selectedContractCode: state.selectedContractCode,
+    forecastMode: state.forecastMode,
+    scrubberMode: state.scrubberMode,
+    hedgeRatio: state.hedgeRatio,
+    hedgeSide: state.hedgeSide,
+    asOfDate: state.asOfDate,
+  };
   return (
-    <Panel title="Export" description="CSV-ready table data and PDF-ready markdown report text.">
+    <Panel title="Export" description="Explicit workspace export/import plus CSV-ready table data and PDF-ready markdown report text.">
       <textarea readOnly value={markdown} />
       <div className="toolbar">
+        <button
+          onClick={() => {
+            const workspace = createWorkspaceFile(snapshot);
+            downloadTextFile(`basis-lab-workspace-${Date.now()}.json`, serializeWorkspace(workspace));
+          }}
+        >
+          Export workspace JSON
+        </button>
+        <label className="button-like">
+          Import workspace JSON
+          <input
+            type="file"
+            accept=".json"
+            hidden
+            onChange={async (event) => {
+              const file = event.currentTarget.files?.[0];
+              if (!file) return;
+              const workspace = deserializeWorkspace(await file.text());
+              state.importWorkspace(workspace.state);
+            }}
+          />
+        </label>
         <button onClick={() => navigator.clipboard.writeText(markdown)}>Copy markdown</button>
         <button onClick={() => navigator.clipboard.writeText("opportunity_id,contract_code,thesis\n" + `${selectedOpportunityId},${selectedContractCode},long physical short paper`)}>Copy CSV</button>
       </div>

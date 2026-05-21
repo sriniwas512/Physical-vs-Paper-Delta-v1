@@ -147,7 +147,7 @@ export const routes: RouteDistanceRow[] = [
     standard_load_days: 4,
     standard_discharge_days: 4,
     weather_margin: 0.06,
-    standard_commission: 2.5,
+    standard_commission: 5,
     standard_cargo_qty: 76000,
     exposure: { P6_82: 0.82, P3A_82: 0.18 },
     route_notes:
