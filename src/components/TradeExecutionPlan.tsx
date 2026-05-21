@@ -5,7 +5,7 @@ import { calculateSettlement, settlementRules } from "../lib/settlementEngine";
 import { simulateHedge } from "../lib/hedgeEngine";
 import { calculateSignal } from "../lib/signalEngine";
 import { createAuditRun, saveAuditRun } from "../lib/auditStore";
-import { benchmarkShips } from "../data/mockData";
+import { benchmarkShips } from "../data/panamaxSeedData";
 import { money, rate } from "../lib/format";
 import { useLabStore } from "../store";
 import { Panel, Tag } from "./common";

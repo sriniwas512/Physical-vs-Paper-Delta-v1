@@ -7,7 +7,7 @@ import {
   opportunities,
   routes,
   vessels,
-} from "./data/mockData";
+} from "./data/panamaxSeedData";
 import type {
   BalticIndexRow,
   BenchmarkFamily,
@@ -79,9 +79,9 @@ export const useLabStore = create<LabStore>((set) => ({
   bunkers,
   routes,
   publicationCalendar: [],
-  marketMode: "BLPG",
-  selectedOpportunityId: opportunities[1].opportunity_id,
-  selectedContractCode: "BLPG3-FFA",
+  marketMode: "PANAMAX",
+  selectedOpportunityId: opportunities[0]?.opportunity_id ?? "",
+  selectedContractCode: "P6-FFA",
   forecastMode: "FLAT_FORWARD",
   scrubberMode: "CHARTERER_RETAINS",
   hedgeRatio: 0.9,

@@ -47,7 +47,7 @@ export function UploadWizard() {
   return (
     <Panel
       title="Data Health"
-      description="Upload CSV/XLSX, validate required columns with zod, and keep the mock book live until replaced."
+      description="Upload CSV/XLSX, validate required columns with zod, and review accepted/rejected rows before analysis."
     >
       <div className="upload-grid">
         {datasets.map((dataset) => (
@@ -85,7 +85,7 @@ export function UploadWizard() {
         ))}
       </div>
       <div className="health-list">
-        <HealthItem ok label="Mock Panamax and BLPG books loaded" />
+        <HealthItem ok={counts.baltic > 0 || counts.ffas > 0} label="Attached Panamax market data loaded" />
         <HealthItem ok label="Settlement rules include month-average and last-seven-day contracts" />
         <HealthItem ok={counts.bunkers > 0} label="Bunker curves available by port/date" />
         <HealthItem ok={counts.routes > 0} label="Route exposure vectors mapped" />

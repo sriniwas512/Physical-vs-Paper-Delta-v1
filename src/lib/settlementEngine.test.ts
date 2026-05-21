@@ -26,7 +26,7 @@ const contract: FfaContractRow = {
   ask: 13100,
   unit: "$/day",
   lot_size: 1,
-  source: "mock",
+  source: "test fixture",
 };
 
 describe("settlementEngine", () => {

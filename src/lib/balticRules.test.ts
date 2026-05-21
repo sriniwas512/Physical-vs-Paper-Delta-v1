@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { benchmarkShips, routes } from "../data/mockData";
+import { benchmarkShips } from "../data/panamaxSeedData";
+import { routeDefinitions } from "../rules/routeDefinitions";
 import {
   balticHeadlineRules,
   p5tcFormula,
@@ -74,7 +75,7 @@ describe("latest Baltic paper rules", () => {
   });
 
   it("keeps BLPG paper route assumptions explicit", () => {
-    const blpg3 = routes.find((route) => route.route_code === "BLPG3_USG_JAPAN");
+    const blpg3 = routeDefinitions.find((route) => route.route_code === "BLPG3_USG_JAPAN");
     expect(blpg3).toMatchObject({
       standard_waiting_days: 0.5,
       standard_load_days: 2,
@@ -82,8 +83,7 @@ describe("latest Baltic paper rules", () => {
       canal_required: true,
       standard_cargo_qty: 44000,
       standard_commission: 1.25,
-      route_notes:
-        "BLPG3 $/mt: Houston to Chiba via Panama Canal with 2 days total Panama waiting included. BLPG3-TCE: delivery Houston round voyage discharging Chiba, 2 days load, 2 days discharge, 0.5 day waiting.",
     });
+    expect(blpg3?.route_notes).toContain("GMG BLPG3 44,000mt LPG Houston to Chiba via Panama Canal");
   });
 });

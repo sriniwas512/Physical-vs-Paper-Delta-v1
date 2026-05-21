@@ -1,5 +1,5 @@
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { benchmarkShips } from "../data/mockData";
+import { benchmarkShips } from "../data/panamaxSeedData";
 import { calculatePhysicalEconomics } from "../lib/physicalEngine";
 import { calculateScrubberValue } from "../lib/scrubberEngine";
 import { number } from "../lib/format";

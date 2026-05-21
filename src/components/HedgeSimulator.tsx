@@ -1,7 +1,7 @@
 import { calculateSettlement, settlementRules } from "../lib/settlementEngine";
 import { simulateHedge } from "../lib/hedgeEngine";
 import { calculatePhysicalEconomics } from "../lib/physicalEngine";
-import { benchmarkShips } from "../data/mockData";
+import { benchmarkShips } from "../data/panamaxSeedData";
 import { money } from "../lib/format";
 import { defaultContractByMode, isFfaInMode, opportunitiesInMode } from "../lib/marketMode";
 import { useLabStore } from "../store";

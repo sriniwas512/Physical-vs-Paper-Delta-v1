@@ -1,6 +1,6 @@
 import { calculatePhysicalEconomics } from "../lib/physicalEngine";
 import { calculateScrubberValue } from "../lib/scrubberEngine";
-import { benchmarkShips } from "../data/mockData";
+import { benchmarkShips } from "../data/panamaxSeedData";
 import { money, rate } from "../lib/format";
 import { opportunitiesInMode } from "../lib/marketMode";
 import { useLabStore } from "../store";

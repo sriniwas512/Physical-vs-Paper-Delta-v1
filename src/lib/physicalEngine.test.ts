@@ -1,17 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { benchmarkShips, bunkers, opportunities, routes, vessels } from "../data/mockData";
+import { benchmarkShips } from "../data/panamaxSeedData";
+import { bunkerFixture, opportunityFixture, routeFixture, vesselFixture } from "./testFixtures";
 import { calculatePhysicalEconomics } from "./physicalEngine";
 
 describe("physicalEngine", () => {
   it("calculates voyage TCE and required freight transparently", () => {
-    const opportunity = opportunities[0];
-    const vessel = vessels[0];
-    const route = routes.find((item) => item.route_code === opportunity.route_code)!;
     const result = calculatePhysicalEconomics({
-      opportunity,
-      vessel,
-      route,
-      bunker: bunkers[0],
+      opportunity: opportunityFixture,
+      vessel: vesselFixture,
+      route: routeFixture,
+      bunker: bunkerFixture,
       benchmarkShip: benchmarkShips.BPI82_STANDARD_SHIP,
     });
 
@@ -23,17 +21,15 @@ describe("physicalEngine", () => {
   });
 
   it("warns when TC-in only has no employment plan", () => {
-    const opportunity = { ...opportunities[0], trade_type: "TC_IN_ONLY" as const, employment_status: "NONE" as const };
-    const route = routes.find((item) => item.route_code === opportunity.route_code)!;
+    const opportunity = { ...opportunityFixture, trade_type: "TC_IN_ONLY" as const, employment_status: "NONE" as const };
     const result = calculatePhysicalEconomics({
       opportunity,
-      vessel: vessels[0],
-      route,
-      bunker: bunkers[0],
+      vessel: vesselFixture,
+      route: routeFixture,
+      bunker: bunkerFixture,
       benchmarkShip: benchmarkShips.BPI82_STANDARD_SHIP,
     });
 
     expect(result.warnings.join(" ")).toContain("NO_EMPLOYMENT_PLAN");
   });
 });
-

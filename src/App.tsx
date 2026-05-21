@@ -1,6 +1,6 @@
 import { Anchor, ArrowLeftRight, BarChart3, ClipboardCheck, Database, Download, FileText, Gauge, GitCompareArrows, Ship, Waves } from "lucide-react";
 import { useMemo, useState } from "react";
-import { benchmarkShips } from "./data/mockData";
+import { benchmarkShips } from "./data/panamaxSeedData";
 import { balticHeadlineRules, p5tcFormula, settlementRules } from "./lib/settlementEngine";
 import { pct } from "./lib/format";
 import { GMB_VERSION } from "./rules/gmbVersion";

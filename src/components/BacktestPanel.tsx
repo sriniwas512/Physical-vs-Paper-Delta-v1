@@ -20,7 +20,7 @@ export function BacktestPanel() {
   });
   const finalPnl = result.historicalPnl;
   return (
-    <Panel title="Backtest" description="Historical replay from uploaded Baltic, FFA, bunker and physical opportunity rows. Fake synthetic PnL is disabled.">
+    <Panel title="Backtest" description="Historical replay from uploaded Baltic, FFA, bunker and physical opportunity rows. Placeholder PnL is disabled.">
       <div className="toolbar">
         <Tag tone={result.status === "OK" ? "good" : "warn"}>{result.status === "OK" ? "Replay calculated" : "Insufficient data"}</Tag>
         <Tag>Hedge ratio: {Math.round(state.hedgeRatio * 100)}%</Tag>

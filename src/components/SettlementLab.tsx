@@ -14,6 +14,13 @@ export function SettlementLab() {
     activeFfas.find((row) => row.contract_code === selectedContractCode) ??
     activeFfas.find((row) => row.contract_code === defaultContractByMode[marketMode]) ??
     activeFfas[0];
+  if (!contract) {
+    return (
+      <Panel title="Settlement Lab" description="Prompt-month split between printed Baltic observations and remaining settlement risk.">
+        <div className="empty-state">Insufficient data: no FFA contracts are loaded for {marketMode}.</div>
+      </Panel>
+    );
+  }
   const rule = settlementRules[contract.contract_code] ?? settlementRules["P5TC-FFA"];
   const settlement = calculateSettlement(contract, rule, baltic, {
     asOfDate,

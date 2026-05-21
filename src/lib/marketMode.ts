@@ -1,13 +1,13 @@
 import type { BenchmarkFamily, FfaContractRow, PhysicalOpportunityRow, RouteDistanceRow } from "../types";
 
 export const defaultOpportunityByMode: Record<BenchmarkFamily, string> = {
-  PANAMAX: "PAN-P6-001",
-  BLPG: "LPG-BLPG3-002",
+  PANAMAX: "",
+  BLPG: "",
 };
 
 export const defaultContractByMode: Record<BenchmarkFamily, string> = {
   PANAMAX: "P6-FFA",
-  BLPG: "BLPG3-FFA",
+  BLPG: "",
 };
 
 export function isFfaInMode(ffa: FfaContractRow, mode: BenchmarkFamily): boolean {

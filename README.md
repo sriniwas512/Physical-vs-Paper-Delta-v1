@@ -75,4 +75,4 @@ The physical side remains user-specific: it reflects the actual vessel and oppor
 
 ## MVP Scope
 
-This is a client-side MVP. It includes mock Panamax and LPG data so the dashboard works immediately before uploads, and all calculations are transparent with visible units and formula tooltips.
+This is a client-side MVP seeded with extracted Panamax market data from the committed source-data constants. Physical opportunity, vessel, bunker and route assumptions must be uploaded by the user before physical-paper trade signals are relied on.

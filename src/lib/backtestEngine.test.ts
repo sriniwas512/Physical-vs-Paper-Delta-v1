@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { addDays, format } from "date-fns";
-import { bunkers, ffaContracts, opportunities, routes, vessels } from "../data/mockData";
+import { ffaContracts } from "../data/panamaxSeedData";
 import type { BalticIndexRow } from "../types";
+import { bunkerFixture, opportunityFixture, routeFixture, vesselFixture } from "./testFixtures";
 import { runBacktest } from "./backtestEngine";
 
 const historicalPrints: BalticIndexRow[] = Array.from({ length: 25 }, (_, index) => ({
@@ -12,7 +13,7 @@ const historicalPrints: BalticIndexRow[] = Array.from({ length: 25 }, (_, index)
 }));
 
 describe("backtestEngine", () => {
-  it("refuses to show fake metrics when required data is missing", () => {
+  it("refuses to show placeholder metrics when required data is missing", () => {
     const result = runBacktest({ indexData: [], ffas: [], bunkers: [], hedgeRatio: 1 });
 
     expect(result.status).toBe("INSUFFICIENT_DATA");
@@ -24,10 +25,10 @@ describe("backtestEngine", () => {
     const result = runBacktest({
       indexData: historicalPrints,
       ffas: [ffaContracts.find((ffa) => ffa.contract_code === "P6-FFA")!, { ...ffaContracts.find((ffa) => ffa.contract_code === "P6-FFA")!, trade_date: "2026-05-19", price: 15200 }],
-      bunkers,
-      opportunity: opportunities[0],
-      vessel: vessels[0],
-      route: routes.find((route) => route.route_code === opportunities[0].route_code),
+      bunkers: [bunkerFixture],
+      opportunity: opportunityFixture,
+      vessel: vesselFixture,
+      route: routeFixture,
       hedgeRatio: 1,
     });
 
@@ -36,4 +37,3 @@ describe("backtestEngine", () => {
     expect(Number.isFinite(result.maxDrawdown)).toBe(true);
   });
 });
-
